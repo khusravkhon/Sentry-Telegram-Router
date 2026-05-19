@@ -1,23 +1,44 @@
-# Sentry Telegram Router
+# Mahal Sentry Telegram Router
 
-Node.js webhook-сервис, который принимает alert webhook из Sentry и отправляет сообщение в нужную тему Telegram-группы.
+Node.js webhook-сервис для маршрутизации Sentry alerts в разные темы Telegram-группы.
 
-Схема работы:
+Проект удобно использовать для экосистемы Mahal: отдельные ошибки `mahal-client`, `mahal-admin` и карты (`mahal-map`) можно отправлять в разные Telegram topics, чтобы команда быстрее понимала, где произошла проблема.
 
 ```text
-Sentry Alert Rule -> Node.js webhook -> Telegram Bot -> Telegram Topic
+Sentry Alert Rule -> Webhook service -> Telegram Bot -> Telegram Topic
 ```
+
+## Что делает сервис
+
+- принимает webhook от Sentry;
+- определяет проект из payload Sentry;
+- находит Telegram topic по настройке `PROJECT_THREADS`;
+- отправляет короткое HTML-сообщение в Telegram;
+- если проект не найден, отправляет alert в default topic.
+
+## Пример для Mahal
+
+Для публичного README ниже используются безопасные placeholders. Реальные токены, chat ID и Sentry project ID нельзя публиковать в GitHub.
+
+Пример маршрутов:
+
+| Sentry project | Для чего | Telegram topic |
+| --- | --- | --- |
+| `mahal-client` | Основной пользовательский frontend Mahal | Client alerts |
+| `mahal-admin` | Админ-панель Mahal | Admin alerts |
+| `mahal-map` | Карта, геоданные, слои, маркеры и ошибки отображения карты | Map alerts |
+
+Если Sentry присылает не slug, а числовой project ID, добавь этот ID в `aliases`.
 
 ## Требования
 
 - Node.js 18+
 - Telegram bot token из `@BotFather`
 - Telegram supergroup с включенными Topics
-- Публичный HTTPS URL для сервиса, например `https://alerts.example.com`
+- публичный HTTPS URL для webhook, например `https://alerts.example.com`
+- Sentry project с alert rule и webhook integration
 
-Важно: если token бота уже был отправлен в чат, скриншот или публичный репозиторий, лучше перевыпустить token в `@BotFather`.
-
-## Локальный запуск
+## Быстрый старт
 
 ```bash
 npm install
@@ -41,26 +62,37 @@ http://localhost:3000/
 
 ## Настройка `.env`
 
-Создай `.env` рядом с `index.js`:
+Создай `.env` рядом с `index.js` или скопируй `.env.example`.
 
 ```env
 PORT=3000
 
 TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN
-TELEGRAM_CHAT_ID=-1003948648747
+TELEGRAM_CHAT_ID=-1000000000000
 
 DEFAULT_THREAD_ID=1
 
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["4511335518568448"],"threadId":2},{"project":"mahal-admin","aliases":["4511335868858368"],"threadId":3}]
+PROJECT_THREADS=[{"project":"mahal-client","aliases":["SENTRY_MAHAL_CLIENT_PROJECT_ID"],"threadId":2},{"project":"mahal-admin","aliases":["SENTRY_MAHAL_ADMIN_PROJECT_ID"],"threadId":3},{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID","mahal-map"],"threadId":4}]
 ```
 
-`PROJECT_THREADS` должен быть в одну строку и быть валидным JSON.
+`PROJECT_THREADS` должен быть записан в одну строку и быть валидным JSON.
 
 Поля:
 
-- `project`: красивое имя/slug проекта, которое будет показано в Telegram.
-- `aliases`: дополнительные ID или slug проекта, которые может прислать Sentry.
-- `threadId`: ID темы в Telegram.
+- `project` - slug проекта, который будет показан в Telegram.
+- `aliases` - дополнительные ID или slug проекта, которые может прислать Sentry.
+- `threadId` - ID темы в Telegram.
+
+## Безопасность перед публикацией
+
+Перед публикацией на публичном GitHub проверь:
+
+- файл `.env` не попал в репозиторий;
+- в README нет реальных `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `threadId` и Sentry project ID;
+- `.gitignore` содержит `.env`;
+- если токен бота уже был опубликован, перевыпусти его в `@BotFather`.
+
+В этом репозитории `.env` должен оставаться локальным файлом, а для примера используется только `.env.example`.
 
 ## Как узнать `TELEGRAM_CHAT_ID` и `threadId`
 
@@ -74,40 +106,40 @@ PROJECT_THREADS=[{"project":"mahal-client","aliases":["4511335518568448"],"threa
 https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
 ```
 
-Ищи `chat.id`:
+В ответе найди `chat.id`:
 
 ```json
 "chat": {
-  "id": -1003948648747,
-  "title": "Alert",
+  "id": -1000000000000,
+  "title": "Mahal Alerts",
   "is_forum": true
 }
 ```
 
-Это значение ставится сюда:
+Это значение ставится в `.env`:
 
 ```env
-TELEGRAM_CHAT_ID=-1003948648747
+TELEGRAM_CHAT_ID=-1000000000000
 ```
 
-Ищи `message_thread_id`:
+Для конкретной темы найди `message_thread_id`:
 
 ```json
-"message_thread_id": 2
+"message_thread_id": 4
 ```
 
 Это значение ставится в `PROJECT_THREADS`:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["SENTRY_PROJECT_ID"],"threadId":2}]
+PROJECT_THREADS=[{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
 ```
 
 ## Как добавить новый проект
 
-Пример: нужно добавить проект `mahal-map`.
+Пример: нужно добавить отдельный topic для карты Mahal.
 
-1. Создай новую тему в Telegram.
-2. Напиши сообщение в эту тему.
+1. Создай тему в Telegram, например `Map alerts`.
+2. Напиши любое сообщение в эту тему.
 3. Открой:
 
 ```text
@@ -120,7 +152,7 @@ https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
 Пример:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["4511335518568448"],"threadId":2},{"project":"mahal-admin","aliases":["4511335868858368"],"threadId":3},{"project":"mahal-map","aliases":["SENTRY_PROJECT_ID_HERE"],"threadId":4}]
+PROJECT_THREADS=[{"project":"mahal-client","aliases":["SENTRY_MAHAL_CLIENT_PROJECT_ID"],"threadId":2},{"project":"mahal-admin","aliases":["SENTRY_MAHAL_ADMIN_PROJECT_ID"],"threadId":3},{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
 ```
 
 6. Перезапусти сервис:
@@ -139,21 +171,23 @@ Received Sentry webhook: detectedProject=4511330000000000, project=4511330000000
 
 ## Тест webhook вручную
 
+PowerShell:
+
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/sentry/telegram-alert" -Method Post -ContentType "application/json" -Body '{"project":"mahal-client","data":{"issue":{"title":"Test error","project":{"slug":"mahal-client"},"web_url":"https://sentry.io/test"},"event":{"level":"error","environment":"production"}}}'
+Invoke-RestMethod -Uri "http://localhost:3000/sentry/telegram-alert" -Method Post -ContentType "application/json" -Body '{"project":"mahal-map","data":{"issue":{"title":"Map markers failed to load","project":{"slug":"mahal-map"},"web_url":"https://sentry.io/test"},"event":{"level":"error","environment":"production"}}}'
 ```
 
-Если все настроено правильно, сообщение придет в Telegram topic.
+Если все настроено правильно, сообщение придет в Telegram topic, который указан для `mahal-map`.
 
 ## Настройка Sentry
 
-Webhook URL должен быть:
+Webhook URL:
 
 ```text
 https://YOUR_DOMAIN/sentry/telegram-alert
 ```
 
-Для теста через ngrok:
+Для локального теста через ngrok:
 
 ```text
 https://YOUR_NGROK_DOMAIN/sentry/telegram-alert
@@ -161,85 +195,41 @@ https://YOUR_NGROK_DOMAIN/sentry/telegram-alert
 
 В Sentry:
 
-1. `Settings -> Integrations -> Create New Integration`
-2. Тип: `Internal Integration`
-3. Name: `Telegram Router`
-4. Webhook URL:
-
-```text
-https://YOUR_DOMAIN/sentry/telegram-alert
-```
-
-5. Включи `Alert Rule Action`
-6. Сохрани integration
+1. Открой `Settings -> Integrations -> Create New Integration`.
+2. Выбери `Internal Integration`.
+3. Укажи name, например `Telegram Router`.
+4. Вставь webhook URL.
+5. Включи `Alert Rule Action`.
+6. Сохрани integration.
 7. В alert rule выбери action:
 
 ```text
 Send a notification via an integration -> Telegram Router
 ```
 
-## Запуск на сервере с автозапуском
+## Запуск на сервере
 
 Пример для Ubuntu/Linux.
-
-### 1. Залить проект
-
-Вариант через `scp`:
-
-```bash
-scp -r ./alert_mahal user@SERVER_IP:/opt/sentry-telegram-router
-```
-
-На сервере:
 
 ```bash
 cd /opt/sentry-telegram-router
 npm ci
-```
-
-Создай `.env` на сервере:
-
-```bash
-nano .env
-```
-
-### 2. Проверить запуск
-
-```bash
 npm start
 ```
 
-Проверь:
+Проверка:
 
 ```bash
 curl http://localhost:3000/
 ```
 
-### 3. Запустить через PM2
-
-Установи PM2:
+## Запуск через PM2
 
 ```bash
 npm install -g pm2
-```
-
-Запусти сервис:
-
-```bash
 pm2 start index.js --name sentry-telegram-router
 pm2 save
-```
-
-Включи автозапуск после перезагрузки сервера:
-
-```bash
 pm2 startup
-```
-
-PM2 покажет команду с `sudo`. Скопируй и выполни ее. После этого еще раз:
-
-```bash
-pm2 save
 ```
 
 Полезные команды:
@@ -253,9 +243,7 @@ pm2 stop sentry-telegram-router
 
 ## Nginx и HTTPS
 
-Sentry должен отправлять webhook на публичный HTTPS URL. Обычно ставят Nginx перед Node.js.
-
-Пример Nginx:
+Sentry должен отправлять webhook на публичный HTTPS URL. Обычно Nginx ставят перед Node.js.
 
 ```nginx
 server {
@@ -285,7 +273,7 @@ https://alerts.example.com/sentry/telegram-alert
 `PROJECT_THREADS` сломан или записан в несколько строк. Нужно так:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["4511335518568448"],"threadId":2}]
+PROJECT_THREADS=[{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
 ```
 
 ### Telegram `401 Unauthorized`
@@ -309,3 +297,7 @@ Received Sentry webhook: detectedProject=..., project=..., threadId=...
 ```
 
 Если лога нет, проверь публичный URL, ngrok/Nginx, HTTPS и настройку Sentry integration.
+
+## Лицензия
+
+Укажи лицензию перед публикацией, если проект должен быть open source.
