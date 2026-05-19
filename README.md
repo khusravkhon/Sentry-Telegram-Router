@@ -1,8 +1,6 @@
-# Mahal Sentry Telegram Router
+# Sentry Telegram Router
 
 Node.js webhook-сервис для маршрутизации Sentry alerts в разные темы Telegram-группы.
-
-Проект удобно использовать для экосистемы Mahal: отдельные ошибки `mahal-client`, `mahal-admin` и карты (`mahal-map`) можно отправлять в разные Telegram topics, чтобы команда быстрее понимала, где произошла проблема.
 
 ```text
 Sentry Alert Rule -> Webhook service -> Telegram Bot -> Telegram Topic
@@ -16,17 +14,17 @@ Sentry Alert Rule -> Webhook service -> Telegram Bot -> Telegram Topic
 - отправляет короткое HTML-сообщение в Telegram;
 - если проект не найден, отправляет alert в default topic.
 
-## Пример для Mahal
+## Пример использования
 
-Для публичного README ниже используются безопасные placeholders. Реальные токены, chat ID и Sentry project ID нельзя публиковать в GitHub.
+Для публичного README используются безопасные placeholders. Реальные токены, chat ID, thread ID и Sentry project ID нельзя публиковать в GitHub.
 
 Пример маршрутов:
 
 | Sentry project | Для чего | Telegram topic |
 | --- | --- | --- |
-| `mahal-client` | Основной пользовательский frontend Mahal | Client alerts |
-| `mahal-admin` | Админ-панель Mahal | Admin alerts |
-| `mahal-map` | Карта, геоданные, слои, маркеры и ошибки отображения карты | Map alerts |
+| `frontend-app` | Пользовательский frontend | Frontend alerts |
+| `backend-api` | Backend API | Backend alerts |
+| `worker-service` | Фоновые задачи и очереди | Worker alerts |
 
 Если Sentry присылает не slug, а числовой project ID, добавь этот ID в `aliases`.
 
@@ -72,7 +70,7 @@ TELEGRAM_CHAT_ID=-1000000000000
 
 DEFAULT_THREAD_ID=1
 
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["SENTRY_MAHAL_CLIENT_PROJECT_ID"],"threadId":2},{"project":"mahal-admin","aliases":["SENTRY_MAHAL_ADMIN_PROJECT_ID"],"threadId":3},{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID","mahal-map"],"threadId":4}]
+PROJECT_THREADS=[{"project":"frontend-app","aliases":["SENTRY_FRONTEND_PROJECT_ID"],"threadId":2},{"project":"backend-api","aliases":["SENTRY_BACKEND_PROJECT_ID"],"threadId":3},{"project":"worker-service","aliases":["SENTRY_WORKER_PROJECT_ID"],"threadId":4}]
 ```
 
 `PROJECT_THREADS` должен быть записан в одну строку и быть валидным JSON.
@@ -111,7 +109,7 @@ https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
 ```json
 "chat": {
   "id": -1000000000000,
-  "title": "Mahal Alerts",
+  "title": "Project Alerts",
   "is_forum": true
 }
 ```
@@ -131,14 +129,12 @@ TELEGRAM_CHAT_ID=-1000000000000
 Это значение ставится в `PROJECT_THREADS`:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
+PROJECT_THREADS=[{"project":"frontend-app","aliases":["SENTRY_FRONTEND_PROJECT_ID"],"threadId":4}]
 ```
 
 ## Как добавить новый проект
 
-Пример: нужно добавить отдельный topic для карты Mahal.
-
-1. Создай тему в Telegram, например `Map alerts`.
+1. Создай новую тему в Telegram.
 2. Напиши любое сообщение в эту тему.
 3. Открой:
 
@@ -152,7 +148,7 @@ https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
 Пример:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-client","aliases":["SENTRY_MAHAL_CLIENT_PROJECT_ID"],"threadId":2},{"project":"mahal-admin","aliases":["SENTRY_MAHAL_ADMIN_PROJECT_ID"],"threadId":3},{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
+PROJECT_THREADS=[{"project":"frontend-app","aliases":["SENTRY_FRONTEND_PROJECT_ID"],"threadId":2},{"project":"backend-api","aliases":["SENTRY_BACKEND_PROJECT_ID"],"threadId":3},{"project":"worker-service","aliases":["SENTRY_WORKER_PROJECT_ID"],"threadId":4}]
 ```
 
 6. Перезапусти сервис:
@@ -174,10 +170,10 @@ Received Sentry webhook: detectedProject=4511330000000000, project=4511330000000
 PowerShell:
 
 ```powershell
-Invoke-RestMethod -Uri "http://localhost:3000/sentry/telegram-alert" -Method Post -ContentType "application/json" -Body '{"project":"mahal-map","data":{"issue":{"title":"Map markers failed to load","project":{"slug":"mahal-map"},"web_url":"https://sentry.io/test"},"event":{"level":"error","environment":"production"}}}'
+Invoke-RestMethod -Uri "http://localhost:3000/sentry/telegram-alert" -Method Post -ContentType "application/json" -Body '{"project":"frontend-app","data":{"issue":{"title":"Test error","project":{"slug":"frontend-app"},"web_url":"https://sentry.io/test"},"event":{"level":"error","environment":"production"}}}'
 ```
 
-Если все настроено правильно, сообщение придет в Telegram topic, который указан для `mahal-map`.
+Если все настроено правильно, сообщение придет в Telegram topic, который указан для `frontend-app`.
 
 ## Настройка Sentry
 
@@ -273,7 +269,7 @@ https://alerts.example.com/sentry/telegram-alert
 `PROJECT_THREADS` сломан или записан в несколько строк. Нужно так:
 
 ```env
-PROJECT_THREADS=[{"project":"mahal-map","aliases":["SENTRY_MAHAL_MAP_PROJECT_ID"],"threadId":4}]
+PROJECT_THREADS=[{"project":"frontend-app","aliases":["SENTRY_FRONTEND_PROJECT_ID"],"threadId":4}]
 ```
 
 ### Telegram `401 Unauthorized`
